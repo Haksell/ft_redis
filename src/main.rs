@@ -6,6 +6,19 @@ use std::{
 };
 use tokio::net::{TcpListener, TcpStream};
 
+// type ShardedDb = Arc<Vec<Mutex<HashMap<String, Bytes>>>>;
+
+// fn new_sharded_db(num_shards: usize) -> ShardedDb {
+//     let mut db = Vec::with_capacity(num_shards);
+//     for _ in 0..num_shards {
+//         db.push(Mutex::new(HashMap::new()));
+//     }
+//     Arc::new(db)
+// }
+
+// let shard = db[hash(key) % db.len()].lock().unwrap();
+// shard.insert(key, value);
+
 type Db = Arc<Mutex<HashMap<String, Bytes>>>;
 
 async fn process(socket: TcpStream, db: Db) {
