@@ -1,17 +1,24 @@
+use bytes::Bytes;
 use mini_redis::{Command, Connection, Frame, Result};
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
 use tokio::net::{TcpListener, TcpStream};
 
-async fn process(socket: TcpStream) {
-    let mut db = HashMap::new();
+type Db = Arc<Mutex<HashMap<String, Bytes>>>;
+
+async fn process(socket: TcpStream, db: Db) {
     let mut connection = Connection::new(socket);
     while let Some(frame) = connection.read_frame().await.unwrap() {
         let response = match Command::from_frame(frame).unwrap() {
             Command::Set(cmd) => {
-                db.insert(cmd.key().to_string(), cmd.value().to_vec());
+                let mut db = db.lock().unwrap();
+                db.insert(cmd.key().to_string(), cmd.value().clone());
                 Frame::Simple("OK".to_string())
             }
             Command::Get(cmd) => {
+                let db = db.lock().unwrap();
                 if let Some(value) = db.get(cmd.key()) {
                     Frame::Bulk(value.clone().into())
                 } else {
@@ -27,10 +34,14 @@ async fn process(socket: TcpStream) {
 #[tokio::main]
 async fn main() -> Result<()> {
     let listener = TcpListener::bind("127.0.0.1:5656").await.unwrap();
+    println!("listening");
+    let db = Arc::new(Mutex::new(HashMap::new()));
     loop {
         let (socket, _) = listener.accept().await.unwrap();
+        let db = Arc::clone(&db);
+        println!("Accepted");
         tokio::spawn(async move {
-            process(socket).await;
+            process(socket, db).await;
         });
     }
 }
